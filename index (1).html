@@ -523,7 +523,7 @@
 <section class="hero">
   <div class="eyebrow">AI-powered biomechanics</div>
   <h1>Analyze your<br><em>running form</em></h1>
-  <p class="hero-sub">Upload a photo or video frame of a runner. StrideAI maps 33 body landmarks and scores your gait across 5 biomechanical metrics.</p>
+  <p class="hero-sub">Upload a side-view running image or video frame. StrideAI performs single-frame biomechanics estimation (not full gait cycle analysis). StrideAI maps 33 body landmarks and scores your gait across 5 biomechanical metrics.</p>
 </section>
 
 <div class="upload-wrap">
@@ -678,7 +678,10 @@ function analyzeGait(lm) {
   // 3. Hip Drop (Trendelenburg) — difference in hip heights, ideal < 5% of height
   if (vis(LM.L_HIP) && vis(LM.R_HIP)) {
     const hipDiff = Math.abs(lm[LM.L_HIP].y - lm[LM.R_HIP].y);
-    const hipDrop = Math.round(hipDiff * 100);
+    const hipDrop = Math.round((hipDiff / 0.25) * 100);
+    const hipDropClamped = Math.min(100, hipDrop);
+    value: `${hipDropClamped}%`,
+    bar: Math.max(0, 100 - hipDropClamped * 1.2)
     let status, feedback, score;
     if (hipDrop <= 3) {
       status = 'good'; feedback = 'Hips are level — strong glute medius activation.'; score = 95;
@@ -788,33 +791,37 @@ async function loadModel() {
   if (poseModel) return poseModel;
   if (modelLoading) return null;
   modelLoading = true;
+
   showStatus('Loading AI model (first time only — ~5MB)…');
 
   return new Promise((resolve, reject) => {
-    const pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
+    const pose = new window.Pose({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
     });
 
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
       enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6,
     });
 
     pose.onResults((results) => {
       pose._lastResults = results;
     });
 
-    pose.initialize().then(() => {
-      poseModel = pose;
-      modelLoading = false;
-      resolve(pose);
-    }).catch(err => {
-      modelLoading = false;
-      reject(err);
-    });
+    pose.initialize()
+      .then(() => {
+        poseModel = pose;
+        modelLoading = false;
+        resolve(pose);
+      })
+      .catch(err => {
+        modelLoading = false;
+        reject(err);
+      });
   });
 }
 
