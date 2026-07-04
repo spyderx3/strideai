@@ -632,6 +632,16 @@ function midpoint(a, b) {
 
 // ── Analysis engine ──
 function analyzeGait(lm) {
+  const weights = {
+  'Knee Drive Angle': 1.2,
+  'Trunk Lean': 1.0,
+  'Hip Drop': 1.3,
+  'Arm Angle': 0.9,
+  'Stride Symmetry': 1.4
+};
+
+  let weightedScore = 0;
+  let totalWeight = 0;
   const metrics = [];
   let totalScore = 0;
   let count = 0;
@@ -653,7 +663,9 @@ function analyzeGait(lm) {
       status = 'warn'; feedback = 'Knee under-flexed. Try driving the knee higher for better propulsion.'; score = 60;
     }
     metrics.push({ name: 'Knee Drive Angle', value: `${kneeAngle}°`, ideal: '80–115°', status, feedback, score, bar: Math.min(100, (kneeAngle / 130) * 100) });
-    totalScore += score; count++;
+    const w = weights['Knee Drive Angle']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
   }
 
   // 2. Trunk Lean — angle of torso from vertical (shoulder to hip vs vertical)
@@ -672,7 +684,9 @@ function analyzeGait(lm) {
       status = 'bad'; feedback = 'Excessive trunk lean detected — high injury risk to lower back.'; score = 30;
     }
     metrics.push({ name: 'Trunk Lean', value: `${leanAngle}°`, ideal: '5–15°', status, feedback, score, bar: Math.min(100, 100 - Math.max(0, leanAngle - 15) * 3) });
-    totalScore += score; count++;
+    const w = weights['Trunk Lean']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
   }
 
   // 3. Hip Drop (Trendelenburg) — difference in hip heights, ideal < 5% of height
@@ -680,8 +694,6 @@ function analyzeGait(lm) {
     const hipDiff = Math.abs(lm[LM.L_HIP].y - lm[LM.R_HIP].y);
     const hipDrop = Math.round((hipDiff / 0.25) * 100);
     const hipDropClamped = Math.min(100, hipDrop);
-    value: `${hipDropClamped}%`,
-    bar: Math.max(0, 100 - hipDropClamped * 1.2)
     let status, feedback, score;
     if (hipDrop <= 3) {
       status = 'good'; feedback = 'Hips are level — strong glute medius activation.'; score = 95;
@@ -691,7 +703,9 @@ function analyzeGait(lm) {
       status = 'bad'; feedback = 'Significant hip drop (Trendelenburg sign). High IT band and knee injury risk.'; score = 30;
     }
     metrics.push({ name: 'Hip Drop', value: `${hipDrop}%`, ideal: '<3%', status, feedback, score, bar: Math.max(0, 100 - hipDrop * 8) });
-    totalScore += score; count++;
+    const w = weights['Hip Drop']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
   }
 
   // 4. Arm Angle — elbow flexion during sprint, ideal 85-100°
@@ -706,7 +720,9 @@ function analyzeGait(lm) {
       status = 'warn'; feedback = 'Arms too extended. Tighten elbow angle for better power transfer.'; score = 65;
     }
     metrics.push({ name: 'Arm Angle', value: `${armAngle}°`, ideal: '80–105°', status, feedback, score, bar: Math.min(100, (armAngle / 120) * 100) });
-    totalScore += score; count++;
+    const w = weights['Arm Angle']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
   }
 
   // 5. Stride Symmetry — compare left vs right knee angles
@@ -725,10 +741,14 @@ function analyzeGait(lm) {
       status = 'bad'; feedback = `High asymmetry (${diff}° difference). Consult a physio — compensation pattern detected.`; score = 35;
     }
     metrics.push({ name: 'Stride Symmetry', value: `${Math.max(0, symmetry)}%`, ideal: '>90%', status, feedback, score, bar: Math.max(0, symmetry) });
-    totalScore += score; count++;
+    const w = weights['Stride Symmetry']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
   }
 
-  const overall = count > 0 ? Math.round(totalScore / count) : null;
+  const overall = totalWeight > 0 
+    ? Math.round(weightedScore / totalWeight) 
+    : null;
   return { metrics, overall };
 }
 
@@ -844,10 +864,19 @@ async function processImage(imgEl) {
   }
 
   // Draw on canvas
-  outputCanvas.width = imgEl.naturalWidth || imgEl.width;
-  outputCanvas.height = imgEl.naturalHeight || imgEl.height;
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / imgEl.width);
+
+  outputCanvas.width = imgEl.width * scale;
+  outputCanvas.height = imgEl.height * scale;
+
   const ctx = outputCanvas.getContext('2d');
-  ctx.drawImage(imgEl, 0, 0);
+  ctx.drawImage(
+    imgEl,
+    0, 0,
+    outputCanvas.width,
+    outputCanvas.height
+  );
 
   // Draw connections
   drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#FF4D4D', lineWidth: 3 });
