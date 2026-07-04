@@ -601,7 +601,6 @@
 <!-- MediaPipe via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1620248257/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
 // ── Landmark indices (MediaPipe Pose) ──
@@ -809,40 +808,32 @@ function clearError() {
 // ── Load MediaPipe Pose ──
 async function loadModel() {
   if (poseModel) return poseModel;
-  if (modelLoading) return null;
-  modelLoading = true;
 
-  showStatus('Loading AI model (first time only — ~5MB)…');
+  showStatus("Loading AI model...");
 
-  return new Promise((resolve, reject) => {
-    const pose = new window.Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
-    });
-
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6,
-    });
-
-    pose.onResults((results) => {
-      pose._lastResults = results;
-    });
-
-    pose.initialize()
-      .then(() => {
-        poseModel = pose;
-        modelLoading = false;
-        resolve(pose);
-      })
-      .catch(err => {
-        modelLoading = false;
-        reject(err);
-      });
+  const pose = new Pose({
+    locateFile: (file) =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
   });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+  });
+
+  pose.onResults((results) => {
+    pose._lastResults = results;
+    console.log(results);
+  });
+
+  poseModel = pose;
+
+  hideStatus();
+
+  return poseModel;
 }
 
 // ── Process image ──
@@ -854,7 +845,9 @@ async function processImage(imgEl) {
 
   showStatus('Running biomechanical analysis…');
 
+  console.log("Sending image to MediaPipe...");
   await pose.send({ image: imgEl });
+  console.log(pose._lastResults);
   const results = pose._lastResults;
 
   if (!results || !results.poseLandmarks || results.poseLandmarks.length === 0) {
