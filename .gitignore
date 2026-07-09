@@ -1,8 +1,12 @@
-# Python
-backend/venv/
+# Python caches
+__pycache__/
 backend/__pycache__/
+
+# Virtual environment
+backend/venv/
+
+# Uploaded files
 backend/uploads/
-*.pyc
 
 # macOS
 .DS_Store
