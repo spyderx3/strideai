@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StrideAI — Running Gait Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0C10;
+    --surface: #13161C;
+    --surface2: #1C2028;
+    --border: #252A34;
+    --text: #E8E6E1;
+    --muted: #6B7280;
+    --accent: #FF4D4D;
+    --good: #22C55E;
+    --warn: #F59E0B;
+    --bad: #EF4444;
+    --blue: #3B82F6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-mark {
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo-mark svg { width: 16px; height: 16px; }
+
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    text-align: center;
+    padding: 64px 24px 48px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* ── Upload zone ── */
+  .upload-wrap {
+    max-width: 720px;
+    margin: 0 auto 48px;
+    padding: 0 24px;
+  }
+
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface);
+  }
+
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--accent);
+    background: rgba(255, 77, 77, 0.04);
+  }
+
+  .dropzone input { display: none; }
+
+  /* Scanner animation */
+  .scanner-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    top: 0;
+  }
+
+  .scanning .scanner-line {
+    opacity: 1;
+    animation: scan 2s ease-in-out infinite;
+  }
+
+  @keyframes scan {
+    0% { top: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .dz-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    color: var(--muted);
+  }
+
+  .dz-title {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .dz-title strong { color: var(--accent); }
+
+  .dz-hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .status-bar.show { display: flex; }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Main canvas area ── */
+  .analysis-wrap {
+    display: none;
+    max-width: 1100px;
+    margin: 0 auto 60px;
+    padding: 0 24px;
+    gap: 24px;
+    grid-template-columns: 1fr 380px;
+  }
+
+  .analysis-wrap.show {
+    display: grid;
+  }
+
+  /* Canvas panel */
+  .canvas-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .canvas-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .live-dot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .live-dot::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--good);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--good);
+  }
+
+  #outputCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #000;
+  }
+
+  /* Results panel */
+  .results-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .score-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .score-value {
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .score-value.good { color: var(--good); }
+  .score-value.warn { color: var(--warn); }
+  .score-value.bad { color: var(--bad); }
+
+  .score-desc {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* Metric cards */
+  .metrics-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .metrics-title {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .metric-row {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .metric-row:last-child { border-bottom: none; }
+
+  .metric-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .metric-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .metric-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .metric-val.good { color: var(--good); }
+  .metric-val.warn { color: var(--warn); }
+  .metric-val.bad { color: var(--bad); }
+
+  .metric-bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .metric-bar-fill.good { background: var(--good); }
+  .metric-bar-fill.warn { background: var(--warn); }
+  .metric-bar-fill.bad { background: var(--bad); }
+
+  .metric-feedback {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  /* Feedback card */
+  .feedback-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  .feedback-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .feedback-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .feedback-item:last-child { margin-bottom: 0; }
+
+  .feedback-icon { flex-shrink: 0; font-size: 14px; }
+
+  /* Reset btn */
+  .btn-reset {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .btn-reset:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  /* Error */
+  .error-msg {
+    display: none;
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--bad);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .error-msg.show { display: block; }
+
+  /* ── How it works ── */
+  .how {
+    border-top: 1px solid var(--border);
+    padding: 48px 24px 64px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .how-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+
+  .how-item-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .how-item h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .how-item p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  footer {
+    text-align: center;
+    padding: 0 0 32px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--border);
+  }
+
+  @media (max-width: 768px) {
+    .analysis-wrap { grid-template-columns: 1fr; }
+    .how-grid { grid-template-columns: 1fr; gap: 24px; }
+    header { padding: 16px 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="3" r="1.5" fill="white"/>
+        <line x1="8" y1="4.5" x2="8" y2="9" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="6" x2="5" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="6" x2="11" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="9" x2="6" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="9" x2="10" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    StrideAI
+  </div>
+  <span class="badge mono">GAIT ANALYSIS v1.0</span>
+</header>
+
+<section class="hero">
+  <div class="eyebrow">AI-powered biomechanics</div>
+  <h1>Analyze your<br><em>running form</em></h1>
+  <p class="hero-sub">Upload a side-view running image or video frame. StrideAI performs single-frame biomechanics estimation (not full gait cycle analysis). StrideAI maps 33 body landmarks and scores your gait across 5 biomechanical metrics.</p>
+</section>
+
+<div class="upload-wrap">
+  <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload a running photo">
+    <div class="scanner-line"></div>
+    <input type="file" id="fileInput" accept="image/*,video/*" />
+    <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="dz-title"><strong>Upload a running photo or video</strong></div>
+    <div class="dz-hint mono">JPG, PNG, MP4, MOV — best results with full-body side or front view</div>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="spinner"></div>
+    <span id="statusText">Loading AI model…</span>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+</div>
+
+<div class="analysis-wrap" id="analysisWrap">
+  <div class="canvas-panel">
+    <div class="canvas-panel-header">
+      <span class="mono">POSE OVERLAY</span>
+      <span class="live-dot mono">LANDMARKS DETECTED</span>
+    </div>
+    <canvas id="outputCanvas"></canvas>
+  </div>
+
+  <div class="results-panel">
+    <div class="score-card">
+      <div class="score-label mono">OVERALL GAIT SCORE</div>
+      <div class="score-value" id="overallScore">—</div>
+      <div class="score-desc" id="overallDesc">Analyzing form…</div>
+    </div>
+
+    <div class="metrics-card">
+      <div class="metrics-title">BIOMECHANICAL METRICS</div>
+      <div id="metricsContainer"></div>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-title">COACHING FEEDBACK</div>
+      <div id="feedbackContainer"></div>
+    </div>
+
+    <button class="btn-reset" id="resetBtn">Analyze another image</button>
+  </div>
+</div>
+
+<section class="how">
+  <div class="how-eyebrow">How it works</div>
+  <div class="how-grid">
+    <div class="how-item">
+      <div class="how-item-num mono">01</div>
+      <h3>Landmark detection</h3>
+      <p>MediaPipe maps 33 precise body points — joints, hips, shoulders — directly in your browser. Nothing leaves your device.</p>
+    </div>
+    <div class="how-item">
+      <div class="how-item-num mono">02</div>
+      <h3>Angle calculation</h3>
+      <p>Joint angles are computed from landmark coordinates using vector mathematics — the same technique used in sports science research.</p>
+    </div>
+    <div class="how-item">
+      <div class="how-item-num mono">03</div>
+      <h3>Gait scoring</h3>
+      <p>Each metric is benchmarked against elite runner reference ranges to produce actionable feedback and an overall form score.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="mono">All processing happens locally in your browser. No data is uploaded anywhere.</footer>
+
+<!-- MediaPipe via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Landmark indices (MediaPipe Pose) ──
+const LM = {
+  NOSE: 0,
+  L_SHOULDER: 11, R_SHOULDER: 12,
+  L_ELBOW: 13,    R_ELBOW: 14,
+  L_WRIST: 15,    R_WRIST: 16,
+  L_HIP: 23,      R_HIP: 24,
+  L_KNEE: 25,     R_KNEE: 26,
+  L_ANKLE: 27,    R_ANKLE: 28,
+};
+
+// ── Angle math ──
+function angle(a, b, c) {
+  // Angle at point b, formed by a-b-c
+  const ab = { x: a.x - b.x, y: a.y - b.y };
+  const cb = { x: c.x - b.x, y: c.y - b.y };
+  const dot = ab.x * cb.x + ab.y * cb.y;
+  const mag = Math.sqrt(ab.x**2 + ab.y**2) * Math.sqrt(cb.x**2 + cb.y**2);
+  if (mag === 0) return 0;
+  return Math.round(Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180 / Math.PI);
+}
+
+function midpoint(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+// ── Analysis engine ──
+function analyzeGait(lm) {
+  const weights = {
+  'Knee Drive Angle': 1.2,
+  'Trunk Lean': 1.0,
+  'Hip Drop': 1.3,
+  'Arm Angle': 0.9,
+  'Stride Symmetry': 1.4
+};
+
+  let weightedScore = 0;
+  let totalWeight = 0;
+  const metrics = [];
+  let totalScore = 0;
+  let count = 0;
+
+  // Helper: visibility check
+  function vis(idx) {
+    return lm[idx] && lm[idx].visibility > 0.5;
+  }
+
+  // 1. Knee Drive (left) — angle at knee: hip-knee-ankle, ideal 85-110° at drive phase
+  if (vis(LM.L_HIP) && vis(LM.L_KNEE) && vis(LM.L_ANKLE)) {
+    const kneeAngle = angle(lm[LM.L_HIP], lm[LM.L_KNEE], lm[LM.L_ANKLE]);
+    let status, feedback, score;
+    if (kneeAngle >= 80 && kneeAngle <= 115) {
+      status = 'good'; feedback = 'Excellent knee drive — optimal power generation range.'; score = 95;
+    } else if (kneeAngle < 80) {
+      status = 'warn'; feedback = 'Knee over-flexed. May indicate fatigue or overstriding.'; score = 65;
+    } else {
+      status = 'warn'; feedback = 'Knee under-flexed. Try driving the knee higher for better propulsion.'; score = 60;
+    }
+    metrics.push({ name: 'Knee Drive Angle', value: `${kneeAngle}°`, ideal: '80–115°', status, feedback, score, bar: Math.min(100, (kneeAngle / 130) * 100) });
+    const w = weights['Knee Drive Angle']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
+  }
+
+  // 2. Trunk Lean — angle of torso from vertical (shoulder to hip vs vertical)
+  if (vis(LM.L_SHOULDER) && vis(LM.L_HIP)) {
+    const dx = lm[LM.L_SHOULDER].x - lm[LM.L_HIP].x;
+    const dy = lm[LM.L_SHOULDER].y - lm[LM.L_HIP].y;
+    const leanAngle = Math.round(Math.abs(Math.atan2(dx, -dy) * 180 / Math.PI));
+    let status, feedback, score;
+    if (leanAngle >= 5 && leanAngle <= 15) {
+      status = 'good'; feedback = 'Ideal forward lean. Gravity is working with you.'; score = 95;
+    } else if (leanAngle < 5) {
+      status = 'warn'; feedback = 'Too upright. A slight forward lean improves efficiency.'; score = 70;
+    } else if (leanAngle <= 25) {
+      status = 'warn'; feedback = 'Slightly excessive lean. Risk of losing balance at pace.'; score = 65;
+    } else {
+      status = 'bad'; feedback = 'Excessive trunk lean detected — high injury risk to lower back.'; score = 30;
+    }
+    metrics.push({ name: 'Trunk Lean', value: `${leanAngle}°`, ideal: '5–15°', status, feedback, score, bar: Math.min(100, 100 - Math.max(0, leanAngle - 15) * 3) });
+    const w = weights['Trunk Lean']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
+  }
+
+  // 3. Hip Drop (Trendelenburg) — difference in hip heights, ideal < 5% of height
+  if (vis(LM.L_HIP) && vis(LM.R_HIP)) {
+    const hipDiff = Math.abs(lm[LM.L_HIP].y - lm[LM.R_HIP].y);
+    const hipDrop = Math.round((hipDiff / 0.25) * 100);
+    const hipDropClamped = Math.min(100, hipDrop);
+    let status, feedback, score;
+    if (hipDrop <= 3) {
+      status = 'good'; feedback = 'Hips are level — strong glute medius activation.'; score = 95;
+    } else if (hipDrop <= 7) {
+      status = 'warn'; feedback = 'Mild hip drop. Glute strengthening exercises recommended.'; score = 65;
+    } else {
+      status = 'bad'; feedback = 'Significant hip drop (Trendelenburg sign). High IT band and knee injury risk.'; score = 30;
+    }
+    metrics.push({ name: 'Hip Drop', value: `${hipDrop}%`, ideal: '<3%', status, feedback, score, bar: Math.max(0, 100 - hipDrop * 8) });
+    const w = weights['Hip Drop']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
+  }
+
+  // 4. Arm Angle — elbow flexion during sprint, ideal 85-100°
+  if (vis(LM.L_SHOULDER) && vis(LM.L_ELBOW) && vis(LM.L_WRIST)) {
+    const armAngle = angle(lm[LM.L_SHOULDER], lm[LM.L_ELBOW], lm[LM.L_WRIST]);
+    let status, feedback, score;
+    if (armAngle >= 80 && armAngle <= 105) {
+      status = 'good'; feedback = 'Optimal arm carriage. ~90° elbow bend maximizes arm drive efficiency.'; score = 95;
+    } else if (armAngle < 80) {
+      status = 'warn'; feedback = 'Arms too tight. Relax and allow a natural 90° bend.'; score = 70;
+    } else {
+      status = 'warn'; feedback = 'Arms too extended. Tighten elbow angle for better power transfer.'; score = 65;
+    }
+    metrics.push({ name: 'Arm Angle', value: `${armAngle}°`, ideal: '80–105°', status, feedback, score, bar: Math.min(100, (armAngle / 120) * 100) });
+    const w = weights['Arm Angle']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
+  }
+
+  // 5. Stride Symmetry — compare left vs right knee angles
+  if (vis(LM.L_HIP) && vis(LM.L_KNEE) && vis(LM.L_ANKLE) &&
+      vis(LM.R_HIP) && vis(LM.R_KNEE) && vis(LM.R_ANKLE)) {
+    const leftKnee = angle(lm[LM.L_HIP], lm[LM.L_KNEE], lm[LM.L_ANKLE]);
+    const rightKnee = angle(lm[LM.R_HIP], lm[LM.R_KNEE], lm[LM.R_ANKLE]);
+    const diff = Math.abs(leftKnee - rightKnee);
+    const symmetry = Math.round(100 - (diff / 1.8));
+    let status, feedback, score;
+    if (diff <= 10) {
+      status = 'good'; feedback = `Left/right stride well-matched (${diff}° difference). Low asymmetry injury risk.`; score = 95;
+    } else if (diff <= 20) {
+      status = 'warn'; feedback = `Moderate asymmetry (${diff}° difference). May indicate muscle imbalance.`; score = 65;
+    } else {
+      status = 'bad'; feedback = `High asymmetry (${diff}° difference). Consult a physio — compensation pattern detected.`; score = 35;
+    }
+    metrics.push({ name: 'Stride Symmetry', value: `${Math.max(0, symmetry)}%`, ideal: '>90%', status, feedback, score, bar: Math.max(0, symmetry) });
+    const w = weights['Stride Symmetry']; // or correct metric name
+    weightedScore += score * w;
+    totalWeight += w;
+  }
+
+  const overall = totalWeight > 0 
+    ? Math.round(weightedScore / totalWeight) 
+    : null;
+  return { metrics, overall };
+}
+
+// ── Generate coaching feedback bullets ──
+function generateFeedback(metrics) {
+  const items = [];
+  const bad = metrics.filter(m => m.status === 'bad');
+  const warn = metrics.filter(m => m.status === 'warn');
+  const good = metrics.filter(m => m.status === 'good');
+
+  bad.forEach(m => items.push({ icon: '🔴', text: m.feedback }));
+  warn.forEach(m => items.push({ icon: '🟡', text: m.feedback }));
+  if (good.length === metrics.length) items.push({ icon: '🟢', text: 'Outstanding form across all measured metrics. Focus on maintaining this at race pace.' });
+  else if (good.length > 0) good.slice(0, 2).forEach(m => items.push({ icon: '🟢', text: m.feedback }));
+  if (items.length === 0) items.push({ icon: '⚪', text: 'Not enough landmarks visible. Try a clearer full-body image.' });
+
+  return items;
+}
+
+// ── DOM refs ──
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusBar = document.getElementById('statusBar');
+const statusText = document.getElementById('statusText');
+const errorMsg = document.getElementById('errorMsg');
+const analysisWrap = document.getElementById('analysisWrap');
+const outputCanvas = document.getElementById('outputCanvas');
+const overallScore = document.getElementById('overallScore');
+const overallDesc = document.getElementById('overallDesc');
+const metricsContainer = document.getElementById('metricsContainer');
+const feedbackContainer = document.getElementById('feedbackContainer');
+const resetBtn = document.getElementById('resetBtn');
+
+let poseModel = null;
+let modelLoading = false;
+
+function showStatus(text) {
+  statusBar.classList.add('show');
+  statusText.textContent = text;
+  dropzone.classList.add('scanning');
+}
+
+function hideStatus() {
+  statusBar.classList.remove('show');
+  dropzone.classList.remove('scanning');
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('show');
+  hideStatus();
+}
+
+function clearError() {
+  errorMsg.classList.remove('show');
+}
+
+// ── Load MediaPipe Pose ──
+async function loadModel() {
+  if (poseModel) return poseModel;
+
+  showStatus("Loading AI model...");
+
+  const pose = new Pose({
+    locateFile: (file) =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+  });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+  });
+
+  pose.onResults((results) => {
+    pose._lastResults = results;
+    console.log(results);
+  });
+
+  poseModel = pose;
+
+  hideStatus();
+
+  return poseModel;
+}
+
+// ── Process image ──
+async function processImage(imgEl) {
+  showStatus('Detecting pose landmarks…');
+
+  const pose = await loadModel();
+  if (!pose) { showError('Model failed to load. Please refresh and try again.'); return; }
+
+  showStatus('Running biomechanical analysis…');
+
+  console.log("Sending image to MediaPipe...");
+  await pose.send({ image: imgEl });
+  console.log(pose._lastResults);
+  const results = pose._lastResults;
+
+  if (!results || !results.poseLandmarks || results.poseLandmarks.length === 0) {
+    showError('No pose detected. Try a clearer full-body photo with the whole person visible.');
+    hideStatus();
+    return;
+  }
+
+  // Draw on canvas
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / imgEl.width);
+
+  outputCanvas.width = imgEl.width * scale;
+  outputCanvas.height = imgEl.height * scale;
+
+  const ctx = outputCanvas.getContext('2d');
+  ctx.drawImage(
+    imgEl,
+    0, 0,
+    outputCanvas.width,
+    outputCanvas.height
+  );
+
+  // Draw connections
+  drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#FF4D4D', lineWidth: 3 });
+
+  // Draw landmarks with color coding
+  const lm = results.poseLandmarks;
+  const { metrics, overall } = analyzeGait(lm);
+
+  // Color joints by which metric they belong to
+  const metricJoints = {
+    [LM.L_KNEE]: metrics.find(m => m.name === 'Knee Drive Angle'),
+    [LM.R_KNEE]: metrics.find(m => m.name === 'Knee Drive Angle'),
+    [LM.L_HIP]: metrics.find(m => m.name === 'Hip Drop'),
+    [LM.R_HIP]: metrics.find(m => m.name === 'Hip Drop'),
+    [LM.L_ELBOW]: metrics.find(m => m.name === 'Arm Angle'),
+    [LM.R_ELBOW]: metrics.find(m => m.name === 'Arm Angle'),
+    [LM.L_SHOULDER]: metrics.find(m => m.name === 'Trunk Lean'),
+    [LM.R_SHOULDER]: metrics.find(m => m.name === 'Trunk Lean'),
+  };
+
+  const statusColor = { good: '#22C55E', warn: '#F59E0B', bad: '#EF4444' };
+
+  lm.forEach((point, i) => {
+    const x = point.x * outputCanvas.width;
+    const y = point.y * outputCanvas.height;
+    const metric = metricJoints[i];
+    const color = metric ? (statusColor[metric.status] || '#3B82F6') : '#3B82F6';
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Render results
+  renderResults(metrics, overall);
+  hideStatus();
+  analysisWrap.classList.add('show');
+}
+
+function renderResults(metrics, overall) {
+  // Overall score
+  const scoreClass = overall >= 80 ? 'good' : overall >= 60 ? 'warn' : 'bad';
+  const scoreLabel = overall >= 80 ? 'Excellent form' : overall >= 60 ? 'Needs improvement' : 'High injury risk';
+  overallScore.textContent = overall !== null ? overall : '—';
+  overallScore.className = `score-value ${scoreClass}`;
+  overallDesc.textContent = overall !== null ? scoreLabel : 'Not enough landmarks visible';
+
+  // Metric rows
+  metricsContainer.innerHTML = metrics.map(m => `
+    <div class="metric-row">
+      <div class="metric-top">
+        <span class="metric-name">${m.name}</span>
+        <span class="metric-val ${m.status}">${m.value} <span style="color:var(--muted);font-size:11px">(${m.ideal})</span></span>
+      </div>
+      <div class="metric-bar-track">
+        <div class="metric-bar-fill ${m.status}" style="width:${m.bar}%"></div>
+      </div>
+      <div class="metric-feedback">${m.feedback}</div>
+    </div>
+  `).join('');
+
+  if (metrics.length === 0) {
+    metricsContainer.innerHTML = '<div class="metric-row" style="color:var(--muted);font-size:13px">No metrics could be calculated. Ensure the full body is visible.</div>';
+  }
+
+  // Coaching feedback
+  const feedbackItems = generateFeedback(metrics);
+  feedbackContainer.innerHTML = feedbackItems.map(f => `
+    <div class="feedback-item">
+      <span class="feedback-icon">${f.icon}</span>
+      <span>${f.text}</span>
+    </div>
+  `).join('');
+}
+
+// ── File handling ──
+function handleFile(file) {
+  if (!file) return;
+  clearError();
+  analysisWrap.classList.remove('show');
+
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+
+  if (!isImage && !isVideo) {
+    showError('Unsupported file type. Upload a JPG, PNG, or video file.');
+    return;
+  }
+
+  if (isImage) {
+    const img = new Image();
+    img.onload = () => processImage(img);
+    img.onerror = () => showError('Could not load that image. Try a different file.');
+    img.src = URL.createObjectURL(file);
+  } else {
+    // For video: extract first frame
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.src = URL.createObjectURL(file);
+    video.addEventListener('loadeddata', () => {
+      video.currentTime = 0.5;
+    });
+    video.addEventListener('seeked', () => {
+      processImage(video);
+    });
+    video.addEventListener('error', () => showError('Could not load that video. Try a JPG or PNG screenshot instead.'));
+    showStatus('Extracting frame from video…');
+  }
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+['dragenter', 'dragover'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+resetBtn.addEventListener('click', () => {
+  analysisWrap.classList.remove('show');
+  fileInput.value = '';
+  clearError();
+  overallScore.textContent = '—';
+  metricsContainer.innerHTML = '';
+  feedbackContainer.innerHTML = '';
+});
+
+// Preload model in background after 2s
+setTimeout(() => loadModel().catch(() => {}), 2000);
+</script>
+</body>
+</html>
