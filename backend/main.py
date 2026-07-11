@@ -1,3 +1,6 @@
+import time
+from analysis import analyze_sprint
+
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,6 +14,33 @@ import mediapipe as mp
 
 import os
 import shutil
+import math
+
+POSE_CONNECTIONS = [
+    # Torso
+    (11, 12),
+    (11, 23),
+    (12, 24),
+    (23, 24),
+
+    # Left arm
+    (11, 13),
+    (13, 15),
+
+    # Right arm
+    (12, 14),
+    (14, 16),
+
+    # Left leg
+    (23, 25),
+    (25, 27),
+    (27, 31),
+
+    # Right leg
+    (24, 26),
+    (26, 28),
+    (28, 32),
+]
 
 app = FastAPI()
 
@@ -35,10 +65,38 @@ options = PoseLandmarkerOptions(
     base_options=BaseOptions(
         model_asset_path="pose_landmarker_lite.task"
     ),
-    running_mode=vision.RunningMode.IMAGE,
+    running_mode=vision.RunningMode.VIDEO,
 )
 
 detector = PoseLandmarker.create_from_options(options)
+
+# Calculate angle between three points of a joint
+def calculate_angle(a, b, c):
+
+    ba = (
+        a[0] - b[0],
+        a[1] - b[1]
+    )
+
+    bc = (
+        c[0] - b[0],
+        c[1] - b[1]
+    )
+
+    dot = ba[0] * bc[0] + ba[1] * bc[1]
+
+    mag_ba = math.sqrt(ba[0]**2 + ba[1]**2)
+    mag_bc = math.sqrt(bc[0]**2 + bc[1]**2)
+
+    if mag_ba == 0 or mag_bc == 0:
+        return 0
+
+    cos_theta = dot / (mag_ba * mag_bc)
+    cos_theta = max(-1.0, min(1.0, cos_theta))
+
+    angle = math.degrees(math.acos(cos_theta))
+
+    return angle
 
 @app.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
@@ -52,46 +110,173 @@ async def upload_video(file: UploadFile = File(...)):
     # Open video
     cap = cv2.VideoCapture(save_path)
 
-    success, frame = cap.read()
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
-    if not success:
-        return {"error": "Could not read from uploaded video."}
+    if fps <= 0:
+        fps = 30
 
-    # Convert BGR -> RGB
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_index = 0
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # Convert image for MediaPipe
-    mp_image = mp.Image(
-        image_format=mp.ImageFormat.SRGB,
-        data=rgb_frame
+    output_path = "uploads/processed_video.mp4"
+
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+
+    writer = cv2.VideoWriter(
+        output_path,
+        fourcc,
+        fps,
+        (width, height)
     )
+    print("Writer opened:", writer.isOpened())
+    print("FPS:", fps)
+    print("Size:", width, height)
 
-    # Run pose detection
-    result = detector.detect(mp_image)
+    frame_metrics = []
 
-    # Draw landmarks manually
-    if result.pose_landmarks:
+    while True:
 
-        for landmarks in result.pose_landmarks:
+        success, frame = cap.read()
 
-            for landmark in landmarks:
-                x = int(landmark.x * frame.shape[1])
-                y = int(landmark.y * frame.shape[0])
+        if not success:
+            break
+        
+        height, width, _ = frame.shape
 
-                cv2.circle(
-                    frame,
-                    (x, y),
-                    5,
-                    (0,255,0),
-                    -1
-                )
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    output_image = "uploads/processed_frame.jpg"
+        mp_image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=rgb
+        )
 
-    cv2.imwrite(output_image, frame)
+        timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
 
-    cap.release()
+        if timestamp_ms <= 0:
+            timestamp_ms = int(frame_index * (1000 / fps))
+
+        previous_timestamp = timestamp_ms
+                    
+        frame_index += 1        
+
+        result = detector.detect_for_video(
+            mp_image,
+            timestamp_ms
+        )   
+        print("poses detected:", len(result.pose_landmarks))
+
+        if result.pose_landmarks:
+
+            for landmarks in result.pose_landmarks:
+
+                points = []
+                normalized_points = []
+
+                # Save pixel coordinates
+                for landmark in landmarks:
+
+                    x = int(landmark.x * width)
+                    y = int(landmark.y * height)
+
+                    points.append((x, y))
+                    normalized_points.append(
+                        (
+                            landmark.x,
+                            landmark.y,
+                            landmark.z
+                        )
+                    )
+                    cv2.circle(
+                        frame,
+                        (x, y),
+                        4,
+                        (0,255,0),
+                        -1
+                    )
+                if len(normalized_points) >= 33:
+                    # left knee angle and display
+
+                    left_knee_angle = calculate_angle(
+                        normalized_points[23],
+                        normalized_points[25],
+                        normalized_points[27]
+                    )
+
+                    cv2.putText(
+                        frame,
+                        f"{left_knee_angle:.0f}°",
+                        points[25],   # knee location
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 255),
+                        2
+                    )
+
+                    # right knee angle and display
+
+                    right_knee_angle = calculate_angle(
+                    normalized_points[24],
+                    normalized_points[26],
+                    normalized_points[28]
+                    )
+
+                    cv2.putText(
+                        frame,
+                        f"{right_knee_angle:.0f}°",
+                        points[26],   # knee location
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 255),
+                        2
+                    )
+
+                    left_hip_angle = calculate_angle(
+                    normalized_points[11],
+                    normalized_points[23],
+                    normalized_points[25]
+                    )
+
+                    right_hip_angle = calculate_angle(
+                    normalized_points[12],
+                    normalized_points[24],
+                    normalized_points[26]
+                    )
+
+                    frame_metrics.append({
+                        "frame": frame_index,
+
+                        "left_knee": left_knee_angle,
+                        "right_knee": right_knee_angle,
+
+                        "left_hip": left_hip_angle,
+                        "right_hip": right_hip_angle,
+                        "time": timestamp_ms
+                    })
+
+                    print(
+                    f"Left: {left_knee_angle:.1f}° | Right: {right_knee_angle:.1f}° | Left Hip: {left_hip_angle:.1f}° | Right Hip: {right_hip_angle:.1f}°"
+                    )
+
+                # Draw skeleton
+                for start, end in POSE_CONNECTIONS:
+
+                    cv2.line(
+                        frame,
+                        points[start],
+                        points[end],
+                        (255,0,0),
+                        2
+                    )
+        writer.write(frame)
+
+    results = analyze_sprint(frame_metrics)
+    print(results)
+
+    writer.release()
+    cap.release()   
 
     return {
-        "image": "http://127.0.0.1:8000/uploads/processed_frame.jpg"
+        "video": "http://127.0.0.1:8000/uploads/processed_video.mp4",
+        "analysis": results
     }

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StrideAI — Running Gait Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="3" r="1.5" fill="white"/>
+        <line x1="8" y1="4.5" x2="8" y2="9" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="6" x2="5" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="6" x2="11" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="9" x2="6" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="9" x2="10" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    StrideAI
+  </div>
+  <span class="badge mono">GAIT ANALYSIS v1.0</span>
+</header>
+
+<section class="hero">
+  <div class="eyebrow">AI-powered biomechanics</div>
+  <h1>Analyze your<br><em>running form</em></h1>
+  <p class="hero-sub">Upload a side-view running video. StrideAI automatically detects pose landmarks, analyzes running mechanics, and provides feedback based on biomechanics.</p>
+</section>
+
+<div class="upload-wrap">
+  <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload a running photo">
+    <div class="scanner-line"></div>
+    <input type="file" id="fileInput" accept="image/*,video/*" />
+    <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="dz-title"><strong>Upload a running photo or video</strong></div>
+    <div class="dz-hint mono">JPG, PNG, MP4, MOV — best results with full-body side or front view</div>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="spinner"></div>
+    <span id="statusText">Loading AI model…</span>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+</div>
+
+<div class="analysis-wrap" id="analysisWrap">
+  <div class="canvas-panel">
+    <div class="canvas-panel-header">
+      <span class="mono">POSE OVERLAY</span>
+      <span class="live-dot mono">LANDMARKS DETECTED</span>
+    </div>
+    <video
+      id="outputVideo"
+      controls
+      style="width:100%; display:none;">
+    </video>
+  </div>
+
+  <div class="results-panel">
+    <div class="score-card">
+      <div class="score-label mono">OVERALL GAIT SCORE</div>
+      <div class="score-value" id="overallScore">—</div>
+      <div class="score-desc" id="overallDesc">Analyzing form…</div>
+    </div>
+
+    <div class="metrics-card">
+      <div class="metrics-title">BIOMECHANICAL METRICS</div>
+      <div id="metricsContainer"></div>
+      <div id="backendSummary"></div>
+    </div>
+
+    <div class="feedback-card">
+      <div class="feedback-title">COACHING FEEDBACK</div>
+      <div id="feedbackContainer"></div>
+    </div>
+
+    <button class="btn-reset" id="resetBtn">Analyze another video</button>
+  </div>
+</div>
+
+<section class="how">
+  <div class="how-eyebrow">How it works</div>
+  <div class="how-grid">
+    <div class="how-item">
+      <div class="how-item-num mono">01</div>
+      <h3>Landmark detection</h3>
+      <p>MediaPipe maps 33 precise body points — joints, hips, shoulders — directly in your browser. Nothing leaves your device.</p>
+    </div>
+    <div class="how-item">
+      <div class="how-item-num mono">02</div>
+      <h3>Angle calculation</h3>
+      <p>Joint angles are computed from landmark coordinates using vector mathematics — the same technique used in sports science research.</p>
+    </div>
+    <div class="how-item">
+      <div class="how-item-num mono">03</div>
+      <h3>Gait scoring</h3>
+      <p>Each metric is benchmarked against elite runner reference ranges to produce actionable feedback and an overall form score.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="mono">Videos are processed securely by the StrideAI analysis engine. No data is stored after processing.</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
