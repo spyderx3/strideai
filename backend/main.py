@@ -1,5 +1,6 @@
 import time
 from analysis import analyze_sprint
+import uuid
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,8 +69,6 @@ options = PoseLandmarkerOptions(
     running_mode=vision.RunningMode.VIDEO,
 )
 
-detector = PoseLandmarker.create_from_options(options)
-
 # Calculate angle between three points of a joint
 def calculate_angle(a, b, c):
 
@@ -101,6 +100,8 @@ def calculate_angle(a, b, c):
 @app.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
 
+    detector = PoseLandmarker.create_from_options(options)
+
     # Save uploaded video
     save_path = os.path.join("uploads", file.filename)
 
@@ -119,7 +120,12 @@ async def upload_video(file: UploadFile = File(...)):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    output_path = "uploads/processed_video.mp4"
+    filename = f"processed_{uuid.uuid4().hex}.mp4"
+
+    output_path = os.path.join(
+        "uploads",
+        filename
+)
 
     fourcc = cv2.VideoWriter_fourcc(*"avc1")
 
@@ -231,6 +237,7 @@ async def upload_video(file: UploadFile = File(...)):
                         2
                     )
 
+                    # left, mid, and right hip angle and display
                     left_hip_angle = calculate_angle(
                     normalized_points[11],
                     normalized_points[23],
@@ -243,19 +250,62 @@ async def upload_video(file: UploadFile = File(...)):
                     normalized_points[26]
                     )
 
+                    left_shoulder = normalized_points[11]
+                    right_shoulder = normalized_points[12]
+
+                    mid_shoulder = (
+                        (left_shoulder[0] + right_shoulder[0]) / 2,
+                        (left_shoulder[1] + right_shoulder[1]) / 2
+                    )
+
+                    left_hip = normalized_points[23]
+                    right_hip = normalized_points[24]
+
+                    mid_hip = (
+                        (left_hip[0] + right_hip[0]) / 2,
+                        (left_hip[1] + right_hip[1]) / 2
+                    )
+
+                    dx = mid_shoulder[0] - mid_hip[0]
+                    dy = mid_hip[1] - mid_shoulder[1]
+
+                    trunk_lean = abs(
+                        math.degrees(
+                            math.atan2(dx, dy)
+                        )
+                    )
+
                     frame_metrics.append({
                         "frame": frame_index,
+                        "time": timestamp_ms,
 
                         "left_knee": left_knee_angle,
                         "right_knee": right_knee_angle,
 
                         "left_hip": left_hip_angle,
                         "right_hip": right_hip_angle,
-                        "time": timestamp_ms
+
+                        "trunk_lean": trunk_lean,
+
+                        "left_ankle_x": normalized_points[27][0],
+                        "right_ankle_x": normalized_points[28][0],
+
+                        "left_ankle_y": normalized_points[27][1],
+                        "right_ankle_y": normalized_points[28][1],
+
+                        "left_hip_x": normalized_points[23][0],
+                        "right_hip_x": normalized_points[24][0],
                     })
 
                     print(
                     f"Left: {left_knee_angle:.1f}° | Right: {right_knee_angle:.1f}° | Left Hip: {left_hip_angle:.1f}° | Right Hip: {right_hip_angle:.1f}°"
+                    )
+                    print(
+                    f"dx={dx:.3f}, dy={dy:.3f}, lean={trunk_lean:.1f}"
+                    )
+
+                    print(
+                    f"Left Ankle X: {normalized_points[27][0]:.3f} | Right Ankle X: {normalized_points[28][0]:.3f}"
                     )
 
                 # Draw skeleton
@@ -274,9 +324,10 @@ async def upload_video(file: UploadFile = File(...)):
     print(results)
 
     writer.release()
-    cap.release()   
+    cap.release()
+    detector.close()
 
     return {
-        "video": "http://127.0.0.1:8000/uploads/processed_video.mp4",
+        "video": f"http://127.0.0.1:8000/uploads/{filename}",
         "analysis": results
     }
