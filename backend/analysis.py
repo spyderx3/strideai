@@ -23,6 +23,10 @@ def smooth_signal(values, window_size=5):
 
     return smoothed
 
+# ===========================
+# Calculating general sprint features
+# ===========================
+
 # Calculates stride length for speed (Speed = Stride Length * Cadence)
 def calculate_stride_length(
     left_ankle_x,
@@ -40,7 +44,8 @@ def calculate_stride_length(
             right_hip_x[i]
         )
 
-        if hip_width < 0.03:
+        # Ignore small hip widths
+        if hip_width < 0.01:
             continue
 
         ankle_distance = abs(
@@ -50,12 +55,21 @@ def calculate_stride_length(
 
         stride_ratio = ankle_distance / hip_width
 
-        if stride_ratio < 5:
+        # Ignore VERY unrealistic stride ratios
+        if stride_ratio < 6:
             stride_values.append(stride_ratio)  
 
     if not stride_values:
         return 0
 
+    print(
+        "Stride samples:",
+        len(stride_values),
+        "Min:",
+        min(stride_values) if stride_values else None,
+        "Max:",
+        max(stride_values) if stride_values else None
+    )
     return np.percentile(stride_values, 90)
 
 # Calculates cadence for stride mechanics
@@ -125,6 +139,72 @@ def estimate_ground_contact(ankle_y, fps):
         sum(contact_frames) / len(contact_frames)
     ) / fps
 
+# ===========================
+# Performance scoring
+# ===========================
+
+# Calculates a score based on cadence
+def cadence_score(cadence):
+
+    if cadence >= 260:
+        return 100
+
+    elif cadence >= 240:
+        return 90
+
+    elif cadence >= 220:
+        return 80
+
+    elif cadence >= 200:
+        return 70
+
+    return 60
+
+# Calculates a score based on stride symmetry
+def symmetry_score(diff):
+
+    if diff <= 5:
+        return 100
+
+    elif diff <= 10:
+        return 85
+
+    elif diff <= 15:
+        return 70
+
+    return 50
+
+# Calculates a score based on trunk lean
+def trunk_score(lean):
+
+    if 5 <= lean <= 15:
+        return 100
+
+    elif 3 <= lean <= 20:
+        return 90
+
+    elif 0 <= lean <= 25:
+        return 75
+
+    return 60
+
+# Calculates a score based on knee velocity
+def velocity_score(peak_velocity):
+
+    if peak_velocity >= 450:
+        return 100
+
+    elif peak_velocity >= 400:
+        return 90
+
+    elif peak_velocity >= 300:
+        return 80
+
+    elif peak_velocity >= 200:
+        return 70
+
+    return 60
+
 # MAIN FUNCTION: Analyzes sprint performance metrics
 def analyze_sprint(frame_metrics):
 
@@ -132,8 +212,8 @@ def analyze_sprint(frame_metrics):
         return {
             "summary": {},
             "performance": {},
+            "coaching": {},
             "score": None,
-            "feedback": []
         }
     
     duration_seconds = (
@@ -203,24 +283,6 @@ def analyze_sprint(frame_metrics):
     
     print(min(left_knee))
     print(max(left_knee))
-
-    # Estimate fps and calculate GCT
-    fps = len(frame_metrics) / duration_seconds
-
-    left_gct = estimate_ground_contact(
-        left_ankle,
-        fps
-    )
-
-    right_gct = estimate_ground_contact(
-        right_ankle,
-        fps
-    )
-
-    average_gct = (
-        left_gct +
-        right_gct
-    ) / 2
 
 
     for i in range(len(frame_metrics)):
@@ -362,62 +424,27 @@ def analyze_sprint(frame_metrics):
     knee_symmetry_difference = abs(left_avg - right_avg)
 
     # 11. Calculate feedback
-    feedback = []
+
+    coaching = {
+        "summary": "",
+        "strengths": [],
+        "focus_areas": [],
+        "drills": []
+    }
 
     if movement_type != "Sprint":
 
-        feedback.append(
-            f"Movement Detected: {movement_type} "
-            f"(peak knee velocity: {peak_knee_velocity:.1f}°/sec)"
+        coaching["focus_areas"].append(
+            "Upload a sprint or acceleration video for a complete biomechanics analysis."
         )
 
-        feedback.append(
-            "This analysis is optimized for sprint mechanics. \nUpload a sprint or acceleration video to receive a biomechanics score."
+        coaching["strengths"].append(
+            f"Peak knee velocity: {peak_knee_velocity:.1f}°/sec"
         )
 
-        feedback.append(
+        coaching["strengths"].append(
             f"Average knee velocity: {avg_knee_velocity:.1f}°/sec"
         )
-
-        # Trunk lean feedback
-        if avg_trunk < 5:
-            feedback.append(
-                "Running posture is very upright. A slight forward lean can improve acceleration."
-            )
-
-        elif avg_trunk <= 15:
-            feedback.append(
-                "Excellent trunk posture maintained during sprinting."
-            )
-
-        elif avg_trunk <= 25:
-            feedback.append(
-                "Moderate forward lean detected. Maintain posture as speed increases."
-            )
-
-        else:
-            feedback.append(
-                "Excessive forward lean may reduce efficiency and increase injury risk."
-            )
-
-        # Ground contact time feedback
-        if average_gct < 0.12:
-
-            feedback.append(
-                "Excellent ground contact time. Force production is quick and efficient."
-            )
-
-        elif average_gct < 0.15:
-
-            feedback.append(
-                "Ground contact time is acceptable but could be shortened for greater speed."
-            )
-
-        else:
-
-            feedback.append(
-                "Ground contact time is relatively long. Focus on stiffness and quicker force application."
-            )
 
         return {
 
@@ -459,39 +486,192 @@ def analyze_sprint(frame_metrics):
                     "movement_type": movement_type,
                     "average_knee_velocity": avg_knee_velocity,
                     "peak_knee_velocity": peak_knee_velocity,
+                    "cadence": cadence,
                     "average_trunk_lean": avg_trunk,
-                    "ground_contact_time": average_gct,
                     "stride_length": stride_length
                 },
-
-                "feedback": feedback,
+                
+                "coaching": coaching,
 
                 "score": None
             }
 
-    # 12. Calculate score
+    # 12. Generate coaching recommendations
+
+    # Knee symmetry score (0–100)
     if knee_symmetry_difference <= 5:
-        score = 95
-        feedback.append(
-            "Excellent left/right knee symmetry throughout the run."
+        symmetry_score = 100
+    elif knee_symmetry_difference <= 10:
+        symmetry_score = 80
+    elif knee_symmetry_difference <= 15:
+        symmetry_score = 60
+    else:
+        symmetry_score = 40
+
+    # Trunk lean score (0–100)
+    if 5 <= avg_trunk <= 15:
+        trunk_score = 100
+    elif avg_trunk <= 20:
+        trunk_score = 80
+    elif avg_trunk <= 30:
+        trunk_score = 60
+    elif avg_trunk <= 40:
+        trunk_score = 40
+    else:
+        trunk_score = 20
+
+    # Cadence score (0–100)
+    if 240 <= cadence <= 300:
+        cadence_score = 100
+    elif 220 <= cadence <= 320:
+        cadence_score = 80
+    elif 180 <= cadence <= 340:
+        cadence_score = 60
+    else:
+        cadence_score = 40
+
+    # Stride length score (0–100)
+    if 3.0 <= stride_length <= 4.5:
+        stride_score = 100
+    elif 2.5 <= stride_length <= 5.0:
+        stride_score = 80
+    elif 2.0 <= stride_length <= 5.5:
+        stride_score = 60
+    else:
+        stride_score = 40
+
+    # Velocity score (0–100)
+    if peak_knee_velocity >= 500:
+        velocity_score = 100
+    elif peak_knee_velocity >= 350:
+        velocity_score = 80
+    elif peak_knee_velocity >= 200:
+        velocity_score = 60
+    else:
+        velocity_score = 40
+
+    overall_score = (
+        symmetry_score * 0.25 +
+        trunk_score * 0.30 +
+        cadence_score * 0.20 +
+        stride_score * 0.15 +
+        velocity_score * 0.10
+    )
+
+    score = round(overall_score)
+
+    # Test scores
+    print(f"Symmetry Score: {symmetry_score}")
+    print(f"Trunk Score: {trunk_score}")
+    print(f"Cadence Score: {cadence_score}")
+    print(f"Stride Score: {stride_score}")
+    print(f"Velocity Score: {velocity_score}")
+    print(f"Overall Score: {score}")
+
+    # Trunk coaching
+    if avg_trunk < 5:
+            coaching["focus_areas"].append(
+                "Increase forward lean slightly during acceleration."
+            )
+
+    elif avg_trunk <= 15:
+            coaching["strengths"].append(
+                "Stable trunk posture throughout the sprint."
+            )
+
+    elif avg_trunk <= 25:
+            coaching["focus_areas"].append(
+                "Maintain optimal trunk lean as speed increases."
+            )
+
+    else:
+            coaching["focus_areas"].append(
+                "Reduce excessive forward lean to improve efficiency and lower injury risk."
+            )
+
+    # Knee symmetry feedback
+    if knee_symmetry_difference <= 5:
+        coaching["strengths"].append(
+            "Excellent left/right knee symmetry."
         )
 
     elif knee_symmetry_difference <= 10:
-        score = 80
-        feedback.append(
-            f"Moderate knee asymmetry detected ({knee_symmetry_difference:.1f}° average difference)."
-        )
-
-    elif knee_symmetry_difference <= 15:
-        score = 65
-        feedback.append(
-            f"Noticeable knee asymmetry detected ({knee_symmetry_difference:.1f}° average difference). Consider focusing on balanced mechanics."
+        coaching["focus_areas"].append(
+            "Improve left/right knee symmetry for better force production."
         )
 
     else:
-        score = 45
-        feedback.append(
-            f"Large knee asymmetry detected ({knee_symmetry_difference:.1f}° average difference). Recommend focusing on balancing left and right knee mechanics."
+        coaching["focus_areas"].append(
+            "Address noticeable left/right asymmetry during ground contact."
+        )
+
+    # Stride length feedback
+    if 3.0 <= stride_length <= 4.5:
+
+        coaching["strengths"].append(
+            "Good stride length relative to hip width."
+        )
+
+    else:
+
+        coaching["focus_areas"].append(
+            "Improve stride length consistency."
+        )
+
+    # Cadence feedback
+    if 240 <= cadence <= 300:
+
+        coaching["strengths"].append(
+            "Efficient sprint cadence."
+        )
+
+    else:
+
+        coaching["focus_areas"].append(
+            "Optimize stride turnover for better sprint efficiency."
+        )
+
+    # Drill recommendations
+    if avg_trunk > 25:
+
+        coaching["drills"].append(
+            "Wall acceleration drills"
+        )
+
+    if knee_symmetry_difference > 10:
+
+        coaching["drills"].append(
+            "Single-leg bounds"
+        )
+
+    if cadence < 220:
+
+        coaching["drills"].append(
+            "Fast-feet cadence drills"
+        )
+
+    if score >= 90:
+
+        coaching["summary"] = (
+            "Excellent sprint mechanics with only minor areas for refinement."
+        )
+
+    elif score >= 80:
+
+        coaching["summary"] = (
+            "Strong sprint mechanics with a few opportunities for improvement."
+        )
+
+    elif score >= 70:
+
+        coaching["summary"] = (
+            "Solid sprint mechanics, but several technical improvements could increase efficiency."
+        )
+
+    else:
+
+        coaching["summary"] = (
+            "Sprint mechanics show multiple areas that would benefit from focused technique work."
         )
 
     # 13. Return results of analysis
@@ -537,10 +717,10 @@ def analyze_sprint(frame_metrics):
             "peak_knee_velocity": peak_knee_velocity,
             "cadence": cadence,
             "average_trunk_lean": avg_trunk,
-            "ground_contact_time": average_gct
+            "stride_length": stride_length
         },
 
-        "feedback": feedback,
+        "coaching": coaching,
 
-        "score": score,  
+        "score": score 
     }
